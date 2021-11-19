@@ -12,7 +12,7 @@
     "variables": {
       "storageName": "[concat('function', uniqueString(parameters('siteName')))]",
       "contentShareName": "[toLower(parameters('siteName'))]",
-      "repoUrl": "https://github.com/erjosito/AzureFunction-Python-SSH",
+      "repoUrl": "https://github.com/editedbaseline/CT6052-AzFunc_Mercury_python",
       "branch": "master"
     },
     "resources": [
