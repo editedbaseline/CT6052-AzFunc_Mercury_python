@@ -13,8 +13,6 @@
 
 import logging, json
 import azure.functions as func
-import paramiko, threading, time, urllib.request
-
 from netmiko import ConnectHandler
 from netmiko.ssh_exception import NetMikoTimeoutException
 from paramiko.ssh_exception import AuthenticationException, SSHException
