@@ -66,6 +66,8 @@ def save_disconnect():
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
+    global net_connect
+
     logging.info('Python HTTP trigger function processed a request.')
 
     # Extracting the parameters out of the JSON body. Expecting:
@@ -142,7 +144,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         except(SSHException) as e:
             return func.HttpResponse("Connection failure. Error: " + str(e), status_code=400)
             sys.exit("ssh_connection_fail")
-        except(NetmikoTimeoutException) as e:
+        except(NetMikoTimeoutException) as e:
             return func.HttpResponse("Timeout when connecting. Error: " + str(e), status_code=400)
             sys.exit("ssh_timeout")
         except Exception as e:
