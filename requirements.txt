@@ -1,0 +1,2 @@
+paramiko>=2.0.0
+netmiko>=3.4.0
