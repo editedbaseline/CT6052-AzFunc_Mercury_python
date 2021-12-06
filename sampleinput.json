@@ -1,0 +1,9 @@
+{
+    "hostname": "1.2.3.4",
+    "username": "myuser",
+    "password": "mypassword",
+    "ssh_port": "22",
+    "loopback_id": "123",
+    "ip_prefix": "10.5.47.1",
+    "mask": "255.255.255.0"
+    }
