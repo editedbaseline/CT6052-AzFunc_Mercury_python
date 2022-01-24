@@ -54,12 +54,13 @@ def advertise_route(prefix, mask):
 def save_disconnect():
     # Try to save, if any error gracefully close then exit with error; if ok, gracefully exit
     try:
-        net_connect.send_command("copy r s")
+        net_connect.exit_config_mode()
+        net_connect.send_command( 'write mem' )
+        net_connect.disconnect()
     except Exception as e:
         return func.HttpResponse("Unknown error when attempting to save configuration to NVRAM. Error: " + str(e), status_code=400)
         net_connect.disconnect()
         sys.exit("save_config_error")
-    net_connect.disconnect()
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
