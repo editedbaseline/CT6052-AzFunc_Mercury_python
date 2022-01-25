@@ -10,9 +10,10 @@
 # Version history:
 #  - 0.1 - first imprint (based on working local version https://github.com/editedbaseline/CT6052/blob/master/GNS3_python/main.py)
 #  - 0.2 - fixed save and disconnect, changed 400 error codes to unique per failure starting at 461 to not overlap "common" ones
+#  - 0.3 - fixed failing network vs host address check. Also removed sys.exit() which is never reached
 # ************************
 
-import logging, sys, ipaddress
+import logging, ipaddress
 import azure.functions as func
 from netmiko import ConnectHandler
 from netmiko.ssh_exception import NetMikoTimeoutException
@@ -24,20 +25,7 @@ def validate_ip_address(prefix):
         if ipaddress.IPv4Address(prefix).version == 4:
             return True
     except ipaddress.AddressValueError as e:
-        return func.HttpResponse("IP address validation error. Error: " + str(e), status_code=469)
-        sys.exit("ip_validation_error")
-
-
-def prefix_to_first_host(prefix, mask):
-    try:
-        prefix_length = ipaddress.IPv4Network(prefix + '/' + mask).prefixlen
-    except ValueError as e:
-        return func.HttpResponse("Check the IP address - it appears to be a host address, not the expected network address. Error: " + str(e), status_code=470)
-        sys.exit("prefix_has_host_bit_set")
-    prefix_cidr = prefix + '/' + str(prefix_length)
-    i = ipaddress.ip_network(prefix_cidr)
-    first_host = next(i.hosts())
-    return first_host
+        return func.HttpResponse("IP address validation error. Error: " + str(e), status_code=464)
 
 
 def create_loopback(loopback_id, prefix_fuh, mask):
@@ -58,10 +46,10 @@ def save_disconnect():
         net_connect.exit_config_mode()
         net_connect.send_command( 'write mem' )
         net_connect.disconnect()
+        return True
     except Exception as e:
-        return func.HttpResponse("Unknown error when attempting to save configuration to NVRAM. Error: " + str(e), status_code=471)
         net_connect.disconnect()
-        sys.exit("save_config_error")
+        return False
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -82,7 +70,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
         req_body = req.get_json()
     except ValueError:
-        return func.HttpResponse("Your body does not look to be correct JSON", status_code=472)
+        return func.HttpResponse("Your body does not look to be correct JSON", status_code=462)
     else:
         hostname = req_body.get('hostname')
         username = req_body.get('username')
@@ -97,22 +85,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # Check loopback_id value is valid
         try:
             if not 1 <= int(loopback_id) <= 2147483647:
-                return func.HttpResponse("Loopback_id should be an int between 1 and 2,147,483,647", status_code=461)
-                sys.exit("loopback_id_out_of_bounds")
+                return func.HttpResponse("Loopback_id should be an int between 1 and 2,147,483,647", status_code=463)
         except ValueError:  # for non-ints
-            return func.HttpResponse("Loopback_id should be an int between 1 and 2,147,483,647", status_code=461)
-            sys.exit("loopback_id_not_int")
+            return func.HttpResponse("Loopback_id should be an int between 1 and 2,147,483,647", status_code=463)
 
         # Validate IP address and mask
         if validate_ip_address(ip_prefix) != True:
-            return func.HttpResponse("IP prefix is not valid", status_code=462)
-            sys.exit("ip_prefix_not_valid")
+            return func.HttpResponse("IP prefix is not valid", status_code=464)
         if validate_ip_address(mask) != True:
-            return func.HttpResponse("Subnet mask is not valid", status_code=463)
-            sys.exit("mask_not_valid")
+            return func.HttpResponse("Subnet mask is not valid", status_code=465)
 
         # Get first usable host in the prefix for the loopback address
-        ip_prefix_first_host = prefix_to_first_host(ip_prefix, mask)
+        try:
+            combined_addr = ipaddress.IPv4Network(ip_prefix + '/' + mask, strict=True).network_address
+        except:
+            return func.HttpResponse("Check the IP address - it appears to be a host address, not the expected network address.", status_code=466)
+        i = ipaddress.ip_network(str(combined_addr) + '/' + mask)
+        ip_prefix_first_host = next(i.hosts())
 
         # Setup connection
         nmc_router = {
@@ -137,17 +126,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         try:
             net_connect = ConnectHandler(**nmc_router)
         except(AuthenticationException) as e:
-            return func.HttpResponse("Incorrect username or password. Error: " + str(e), status_code=464)
-            sys.exit("ssh_auth_fail")
+            return func.HttpResponse("Incorrect username or password. Error: " + str(e), status_code=467)
         except(SSHException) as e:
-            return func.HttpResponse("Connection failure. Error: " + str(e), status_code=465)
-            sys.exit("ssh_connection_fail")
+            return func.HttpResponse("Connection failure. Error: " + str(e), status_code=468)
         except(NetMikoTimeoutException) as e:
-            return func.HttpResponse("Timeout when connecting. Error: " + str(e), status_code=466)
-            sys.exit("ssh_timeout")
+            return func.HttpResponse("Timeout when connecting. Error: " + str(e), status_code=469)
         except Exception as e:
-            return func.HttpResponse("Unknown error encountered during connection. Error: " + str(e), status_code=467)
-            sys.exit("ssh_unknown_error")
+            return func.HttpResponse("Unknown error encountered during connection. Error: " + str(e), status_code=470)
 
         # Create loopback
         create_loopback(str(loopback_id), str(ip_prefix_first_host), str(mask))
@@ -155,14 +140,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # Advertise network
         advertise_route(str(ip_prefix), str(mask))
 
-        # exit
-        save_disconnect()
+        # Failing exit
+        if save_disconnect() is False:
+            return func.HttpResponse("Unknown error when attempting to save configuration to NVRAM.", status_code=471)
 
+        # Successful exit
         return func.HttpResponse("Success", status_code=200)
 
     else:
-        # 400: insufficient parameters passed on
-        return func.HttpResponse(
-             "Please pass a hostname, username and password on the query string or in the request body",
-             status_code=468
-        )
+        # Insufficient parameters passed on
+        return func.HttpResponse("Please pass a hostname, username and password on the query string or in the request body", status_code=461)
