@@ -12,6 +12,7 @@
 #  - 0.2 - fixed save and disconnect, changed 400 error codes to unique per failure starting at 461 to not overlap "common" ones
 #  - 0.3 - fixed failing network vs host address check. Also removed sys.exit() which is never reached
 #  - 0.4 - changed to use Key Vault for creds
+#  - 0.5 - add support for removing prefixes
 # ************************
 
 import logging, ipaddress, os
@@ -35,9 +36,20 @@ def create_loopback(loopback_id, prefix_fuh, mask):
     net_connect.send_config_set(config_commands)
 
 
+def remove_loopback(loopback_id):
+    config_commands = [ 'no interface loopback ' + loopback_id]
+    net_connect.send_config_set(config_commands)
+
+
 def advertise_route(prefix, mask):
     config_commands = [ 'router bgp 65535',
                         'network ' + prefix + ' mask ' + mask ]
+    net_connect.send_config_set(config_commands)
+
+
+def remove_route(prefix, mask):
+    config_commands = [ 'router bgp 65535',
+                        'no network ' + prefix + ' mask ' + mask ]
     net_connect.send_config_set(config_commands)
 
 
@@ -64,7 +76,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         #     "ssh_port": "22",
         #     "loopback_id": "123",
         #     "ip_prefix": "10.5.47.0",
-        #     "mask": "255.255.255.0"
+        #     "mask": "255.255.255.0",
+        #     "mode": "add"
         # }
     try:
         req_body = req.get_json()
@@ -78,6 +91,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         loopback_id = req_body.get('loopback_id')
         ip_prefix = req_body.get('ip_prefix')
         mask = req_body.get('mask')
+        mode = req_body.get('mode')
 
     # # Verify that the minimum required arguments have been supplied
     if hostname and username and password and ssh_port and loopback_id and ip_prefix and mask:
@@ -133,11 +147,19 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         except Exception as e:
             return func.HttpResponse("Unknown error encountered during connection. Error: " + str(e), status_code=470)
 
-        # Create loopback
-        create_loopback(str(loopback_id), str(ip_prefix_first_host), str(mask))
-
-        # Advertise network
-        advertise_route(str(ip_prefix), str(mask))
+        # Determine mode and run appropriate commands
+        if mode == "add":
+            # Create loopback
+            create_loopback(str(loopback_id), str(ip_prefix_first_host), str(mask))
+            # Advertise network
+            advertise_route(str(ip_prefix), str(mask))
+        elif mode == "remove":
+            # Remove network
+            remove_route(str(ip_prefix), str(mask))
+            # Remove loopback
+            remove_loopback(str(loopback_id))
+        else:
+            return func.HttpResponse("Unknown mode.", status_code=472)
 
         # Failing exit
         if save_disconnect() is False:
