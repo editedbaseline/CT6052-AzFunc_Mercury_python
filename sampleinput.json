@@ -1,9 +1,28 @@
 {
-    "hostname": "1.2.3.4",
-    "username": "myuser",
-    "password": "mypassword",
-    "ssh_port": "22",
-    "loopback_id": "123",
-    "ip_prefix": "10.5.47.1",
+    "hostname": "86.181.204.137",
+    "username": "4195",
+    "password": "askjniHkiuy6865$",
+    "ssh_port": "12222",
+    "loopback_id": "3",
+    "ip_prefix": "10.3.47.0",
     "mask": "255.255.255.0"
-    }
+}
+
+
+{
+    "hostname": "86.181.204.137",
+    "ssh_port": "12222",
+    "loopback_id": "3",
+    "ip_prefix": "10.3.47.0",
+    "mask": "255.255.255.0"
+}
+
+
+show ip int br
+!
+show run | se bgp
+!
+show startup | se Loopback
+!
+show startup | se bgp
+!

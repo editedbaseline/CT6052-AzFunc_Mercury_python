@@ -11,9 +11,10 @@
 #  - 0.1 - first imprint (based on working local version https://github.com/editedbaseline/CT6052/blob/master/GNS3_python/main.py)
 #  - 0.2 - fixed save and disconnect, changed 400 error codes to unique per failure starting at 461 to not overlap "common" ones
 #  - 0.3 - fixed failing network vs host address check. Also removed sys.exit() which is never reached
+#  - 0.4 - changed to use Key Vault for creds
 # ************************
 
-import logging, ipaddress
+import logging, ipaddress, os
 import azure.functions as func
 from netmiko import ConnectHandler
 from netmiko.ssh_exception import NetMikoTimeoutException
@@ -60,8 +61,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     # Extracting the parameters out of the JSON body. Expecting:
         # {
         #     "hostname": "1.2.3.4",
-        #     "username": "myuser",
-        #     "password": "mypassword",
         #     "ssh_port": "22",
         #     "loopback_id": "123",
         #     "ip_prefix": "10.5.47.0",
@@ -73,8 +72,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse("Your body does not look to be correct JSON", status_code=462)
     else:
         hostname = req_body.get('hostname')
-        username = req_body.get('username')
-        password = req_body.get('password')
+        username = os.getenv('RouterUsernameFromKeyVault')
+        password = os.getenv('RouterPasswordFromKeyVault')
         ssh_port = req_body.get('ssh_port')
         loopback_id = req_body.get('loopback_id')
         ip_prefix = req_body.get('ip_prefix')
